@@ -17,11 +17,11 @@ ros2 launch spark_fast_lio mapping_mid360.launch.yaml environment:=indoor
 Choose the profile before starting a mapping session. Changing voxel resolution
 inside an existing session would mix map resolutions in the ikd-Tree.
 
-The default display publishes the complete algorithm cloud. To hide points more
-than 3 m from the LiDAR without changing odometry or mapping, use:
+The default display publishes the complete algorithm cloud. To hide points whose
+map-frame height is above 3 m without changing odometry or mapping, use:
 
 ```bash
-ros2 launch spark_fast_lio mapping_mid360.launch.yaml display_mode:=range_limited
+ros2 launch spark_fast_lio mapping_mid360.launch.yaml display_mode:=height_limited
 ```
 
 ## 12_07

@@ -36,15 +36,14 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   scan_body_pub_en_  = declare_parameter<bool>("publish.scan_bodyframe_pub_en", false);
   scan_base_pub_en_  = declare_parameter<bool>("publish.scan_baseframe_pub_en", false);
   display_mode_      = declare_parameter<std::string>("publish.display_mode", "original");
-  display_max_range_ = declare_parameter<double>("publish.display_max_range", 3.0);
+  display_max_height_ = declare_parameter<double>("publish.display_max_height", 3.0);
 
-  if (display_mode_ != "original" && display_mode_ != "range_limited") {
+  if (display_mode_ != "original" && display_mode_ != "height_limited") {
     throw std::invalid_argument(
-        "publish.display_mode must be either 'original' or 'range_limited'");
+        "publish.display_mode must be either 'original' or 'height_limited'");
   }
-  if (display_mode_ == "range_limited" && display_max_range_ <= 0.0) {
-    throw std::invalid_argument(
-        "publish.display_max_range must be positive in range_limited mode");
+  if (display_mode_ == "height_limited" && !std::isfinite(display_max_height_)) {
+    throw std::invalid_argument("publish.display_max_height must be finite");
   }
 
   NUM_MAX_ITERATIONS_ = declare_parameter<int>("max_iteration", 4);
@@ -807,20 +806,12 @@ void SPARKFastLIO2::publishFrameWorld(
   // choose which cloud to publish
   PointCloudXYZI::Ptr laserCloudFullRes(dense_pub_en_ ? cloud_undistort_ : feats_down_body_);
 
-  const bool limit_display_range = display_mode_ == "range_limited";
-  const double max_range_squared = display_max_range_ * display_max_range_;
+  const bool limit_display_height = display_mode_ == "height_limited";
 
   PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI());
   laserCloudWorld->reserve(laserCloudFullRes->size());
 
   for (const auto &point : laserCloudFullRes->points) {
-    const double range_squared =
-        static_cast<double>(point.x) * point.x + static_cast<double>(point.y) * point.y +
-        static_cast<double>(point.z) * point.z;
-    if (limit_display_range && range_squared > max_range_squared) {
-      continue;
-    }
-
     PointType point_world;
     if (viz_frame_ == "imu") {
       pclPointBodyToWorld(&point, &point_world);
@@ -834,6 +825,9 @@ void SPARKFastLIO2::publishFrameWorld(
       pclPointIMUToBase(&point_world_imu, &point_world);
     } else {
       throw std::invalid_argument("Invalid visualization frame has been given");
+    }
+    if (limit_display_height && point_world.z > display_max_height_) {
+      continue;
     }
     laserCloudWorld->push_back(point_world);
   }
