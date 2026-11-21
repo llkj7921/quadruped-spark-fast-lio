@@ -4,7 +4,7 @@ launch:
   - arg: {name: start_rviz, default: 'true'}
   - arg: {name: config_path, default: $(find-pkg-share spark_fast_lio)/config/mid360.yaml}
   - arg: {name: environment, default: outdoor, description: "Mid-360 tuning profile: indoor or outdoor"}
-  - arg: {name: display_mode, default: original, description: "Point display: original or height_limited (map z <= 2.0 m)"}
+  - arg: {name: display_mode, default: original, description: "Point display: original or height_limited (map z <= 1.5 m)"}
 
   - node:
       pkg: spark_fast_lio

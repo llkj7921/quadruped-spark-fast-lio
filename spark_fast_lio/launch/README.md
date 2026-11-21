@@ -18,7 +18,7 @@ Choose the profile before starting a mapping session. Changing voxel resolution
 inside an existing session would mix map resolutions in the ikd-Tree.
 
 The default display publishes the complete algorithm cloud. To hide points whose
-map-frame height is above 2.0 m without changing odometry or mapping, use:
+map-frame height is above 1.5 m without changing odometry or mapping, use:
 
 ```bash
 ros2 launch spark_fast_lio mapping_mid360.launch.yaml display_mode:=height_limited
