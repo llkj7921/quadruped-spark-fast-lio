@@ -44,8 +44,9 @@
       scan_bodyframe_pub_en: false
       # original: publish the complete algorithm cloud.
       # height_limited: remove points above display_max_height in the map frame.
+      # z=0 is the odometry origin at startup, not an automatically estimated ground plane.
       display_mode: original
-      display_max_height: 2.5
+      display_max_height: 2.0
 
     pcd_save:
       # Synchronous PCD writes run on the odometry path; keep them disabled
