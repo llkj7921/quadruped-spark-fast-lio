@@ -231,6 +231,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   std::string base_frame_;
   std::string imu_frame_;
   std::string viz_frame_;
+  std::string display_mode_;
 
   double res_mean_last_          = 0.05;
   double total_residual_         = 0.0;
@@ -268,6 +269,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   int feats_down_size_neighbor_ = numeric_limits<int>::max();
 
   double frame_deadline_ms_ = 100.0;
+  double display_max_range_ = 3.0;
   double active_lidar_arrival_time_ = 0.0;
   uint64_t processed_frame_count_ = 0;
 

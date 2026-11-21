@@ -35,6 +35,17 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   scan_lidar_pub_en_ = declare_parameter<bool>("publish.scan_lidarframe_pub_en", false);
   scan_body_pub_en_  = declare_parameter<bool>("publish.scan_bodyframe_pub_en", false);
   scan_base_pub_en_  = declare_parameter<bool>("publish.scan_baseframe_pub_en", false);
+  display_mode_      = declare_parameter<std::string>("publish.display_mode", "original");
+  display_max_range_ = declare_parameter<double>("publish.display_max_range", 3.0);
+
+  if (display_mode_ != "original" && display_mode_ != "range_limited") {
+    throw std::invalid_argument(
+        "publish.display_mode must be either 'original' or 'range_limited'");
+  }
+  if (display_mode_ == "range_limited" && display_max_range_ <= 0.0) {
+    throw std::invalid_argument(
+        "publish.display_max_range must be positive in range_limited mode");
+  }
 
   NUM_MAX_ITERATIONS_ = declare_parameter<int>("max_iteration", 4);
 
@@ -796,23 +807,35 @@ void SPARKFastLIO2::publishFrameWorld(
   // choose which cloud to publish
   PointCloudXYZI::Ptr laserCloudFullRes(dense_pub_en_ ? cloud_undistort_ : feats_down_body_);
 
-  int size = laserCloudFullRes->points.size();
-  // allocate world frames
-  PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI(size, 1));
-  PointCloudXYZI::Ptr laserCloudTmp(new PointCloudXYZI(size, 1));
+  const bool limit_display_range = display_mode_ == "range_limited";
+  const double max_range_squared = display_max_range_ * display_max_range_;
 
-  for (int i = 0; i < size; i++) {
+  PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI());
+  laserCloudWorld->reserve(laserCloudFullRes->size());
+
+  for (const auto &point : laserCloudFullRes->points) {
+    const double range_squared =
+        static_cast<double>(point.x) * point.x + static_cast<double>(point.y) * point.y +
+        static_cast<double>(point.z) * point.z;
+    if (limit_display_range && range_squared > max_range_squared) {
+      continue;
+    }
+
+    PointType point_world;
     if (viz_frame_ == "imu") {
-      pclPointBodyToWorld(&laserCloudFullRes->points[i], &laserCloudWorld->points[i]);
+      pclPointBodyToWorld(&point, &point_world);
     } else if (viz_frame_ == "lidar") {
-      pclPointBodyToWorld(&laserCloudFullRes->points[i], &laserCloudTmp->points[i]);
-      pclPointIMUToLiDAR(&laserCloudTmp->points[i], &laserCloudWorld->points[i]);
+      PointType point_world_imu;
+      pclPointBodyToWorld(&point, &point_world_imu);
+      pclPointIMUToLiDAR(&point_world_imu, &point_world);
     } else if (viz_frame_ == "base") {
-      pclPointBodyToWorld(&laserCloudFullRes->points[i], &laserCloudTmp->points[i]);
-      pclPointIMUToBase(&laserCloudTmp->points[i], &laserCloudWorld->points[i]);
+      PointType point_world_imu;
+      pclPointBodyToWorld(&point, &point_world_imu);
+      pclPointIMUToBase(&point_world_imu, &point_world);
     } else {
       throw std::invalid_argument("Invalid visualization frame has been given");
     }
+    laserCloudWorld->push_back(point_world);
   }
 
   sensor_msgs::msg::PointCloud2 cloud_msg;

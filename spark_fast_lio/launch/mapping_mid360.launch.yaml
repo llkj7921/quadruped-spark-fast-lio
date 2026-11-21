@@ -4,6 +4,7 @@ launch:
   - arg: {name: start_rviz, default: 'true'}
   - arg: {name: config_path, default: $(find-pkg-share spark_fast_lio)/config/mid360.yaml}
   - arg: {name: environment, default: outdoor, description: "Mid-360 tuning profile: indoor or outdoor"}
+  - arg: {name: display_mode, default: original, description: "Point display: original or range_limited (3 m)"}
 
   - node:
       pkg: spark_fast_lio
@@ -27,6 +28,8 @@ launch:
           value: false
         - from: $(var config_path)
         - from: $(find-pkg-share spark_fast_lio)/config/mid360_$(var environment).yaml
+        - name: "publish.display_mode"
+          value: $(var display_mode)
 
   - node:
       if: $(var start_rviz)

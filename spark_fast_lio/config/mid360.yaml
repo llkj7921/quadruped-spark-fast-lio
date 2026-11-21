@@ -42,6 +42,10 @@
       scan_publish_en: true
       dense_publish_en: false
       scan_bodyframe_pub_en: false
+      # original: publish the complete algorithm cloud.
+      # range_limited: publish only points within display_max_range.
+      display_mode: original
+      display_max_range: 3.0
 
     pcd_save:
       # Synchronous PCD writes run on the odometry path; keep them disabled
