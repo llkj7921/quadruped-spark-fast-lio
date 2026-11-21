@@ -268,6 +268,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   int feats_down_size_neighbor_ = numeric_limits<int>::max();
 
   double frame_deadline_ms_ = 100.0;
+  double active_lidar_arrival_time_ = 0.0;
   uint64_t processed_frame_count_ = 0;
 
   double lidar_mean_scantime_ = 0.0;
@@ -294,6 +295,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   double extrinsics_timeout_s_ = 10.0;
 
   std::deque<double> time_buffer_;
+  std::deque<double> lidar_arrival_time_buffer_;
   std::deque<PointCloudXYZI::Ptr> lidar_buffer_;
   std::deque<std::shared_ptr<const sensor_msgs::msg::Imu>> imu_buffer_;
 

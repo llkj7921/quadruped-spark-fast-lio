@@ -372,6 +372,7 @@ void SPARKFastLIO2::collectRemovedPoints() {
 }
 
 void SPARKFastLIO2::standardLiDARCallback(const sensor_msgs::msg::PointCloud2 &msg) {
+  const double arrival_time = omp_get_wtime();
   std::lock_guard<std::mutex> lk(buffer_mutex_);
   scan_count_++;
   rclcpp::Time msg_time = msg.header.stamp;
@@ -379,6 +380,8 @@ void SPARKFastLIO2::standardLiDARCallback(const sensor_msgs::msg::PointCloud2 &m
   if (msg_time < last_lidar_timestamp_) {
     RCLCPP_ERROR(get_logger(), "Lidar loopback detected, clearing buffers");
     lidar_buffer_.clear();
+    time_buffer_.clear();
+    lidar_arrival_time_buffer_.clear();
   }
   last_lidar_timestamp_ = msg_time;
 
@@ -387,6 +390,7 @@ void SPARKFastLIO2::standardLiDARCallback(const sensor_msgs::msg::PointCloud2 &m
 
   lidar_buffer_.push_back(ptr);
   time_buffer_.push_back(msg_time.seconds());
+  lidar_arrival_time_buffer_.push_back(arrival_time);
 
   sig_buffer_.notify_all();
 }
@@ -395,6 +399,7 @@ void SPARKFastLIO2::standardLiDARCallback(const sensor_msgs::msg::PointCloud2 &m
 void SPARKFastLIO2::livoxLiDARCallback(
     const livox_ros_driver2::msg::CustomMsg::ConstSharedPtr msg) {
   static bool timediff_set_flg = false;
+  const double arrival_time    = omp_get_wtime();
 
   std::lock_guard<std::mutex> lk(buffer_mutex_);
   scan_count_++;
@@ -403,6 +408,8 @@ void SPARKFastLIO2::livoxLiDARCallback(
   if (msg_time < last_lidar_timestamp_) {
     RCLCPP_ERROR(get_logger(), "Livox loopback, clearing buffers");
     lidar_buffer_.clear();
+    time_buffer_.clear();
+    lidar_arrival_time_buffer_.clear();
   }
   last_lidar_timestamp_ = msg_time;
 
@@ -428,6 +435,7 @@ void SPARKFastLIO2::livoxLiDARCallback(
 
   lidar_buffer_.push_back(ptr);
   time_buffer_.push_back(msg_time.seconds());
+  lidar_arrival_time_buffer_.push_back(arrival_time);
 
   sig_buffer_.notify_all();
 }
@@ -900,7 +908,7 @@ void SPARKFastLIO2::main() {
     const double frame_start = omp_get_wtime();
     processLidarAndImu(Measures_);
     const double frame_time_ms = (omp_get_wtime() - frame_start) * 1000.0;
-    const double queue_delay_ms = (now().seconds() - Measures_.lidar_end_time) * 1000.0;
+    const double queue_delay_ms = (frame_start - active_lidar_arrival_time_) * 1000.0;
     ++processed_frame_count_;
 
     if (frame_time_ms > frame_deadline_ms_) {
@@ -972,6 +980,7 @@ bool SPARKFastLIO2::syncPackages(MeasureGroup &meas, bool verbose) {
   if (!lidar_pushed_) {
     meas.lidar                = lidar_buffer_.front();
     meas.lidar_beg_time       = time_buffer_.front();
+    active_lidar_arrival_time_ = lidar_arrival_time_buffer_.front();
     static double denominator = 1000;
 
     if (meas.lidar->points.size() <= 1) {
@@ -1023,6 +1032,7 @@ bool SPARKFastLIO2::syncPackages(MeasureGroup &meas, bool verbose) {
 
   lidar_buffer_.pop_front();
   time_buffer_.pop_front();
+  lidar_arrival_time_buffer_.pop_front();
   lidar_pushed_ = false;
 
   return true;
