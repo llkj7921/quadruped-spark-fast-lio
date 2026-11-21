@@ -36,7 +36,7 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   scan_body_pub_en_  = declare_parameter<bool>("publish.scan_bodyframe_pub_en", false);
   scan_base_pub_en_  = declare_parameter<bool>("publish.scan_baseframe_pub_en", false);
   display_mode_      = declare_parameter<std::string>("publish.display_mode", "original");
-  display_max_height_ = declare_parameter<double>("publish.display_max_height", 3.0);
+  display_max_height_ = declare_parameter<double>("publish.display_max_height", 2.5);
 
   if (display_mode_ != "original" && display_mode_ != "height_limited") {
     throw std::invalid_argument(

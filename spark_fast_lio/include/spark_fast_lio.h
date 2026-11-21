@@ -269,7 +269,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   int feats_down_size_neighbor_ = numeric_limits<int>::max();
 
   double frame_deadline_ms_ = 100.0;
-  double display_max_height_ = 3.0;
+  double display_max_height_ = 2.5;
   double active_lidar_arrival_time_ = 0.0;
   uint64_t processed_frame_count_ = 0;
 
