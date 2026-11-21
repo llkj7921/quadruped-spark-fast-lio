@@ -1,5 +1,22 @@
 ## 10_14
 
+## Livox Mid-360
+
+The outdoor profile is selected by default:
+
+```bash
+ros2 launch spark_fast_lio mapping_mid360.launch.yaml environment:=outdoor
+```
+
+Use the indoor profile for shorter range and finer scan/map voxels:
+
+```bash
+ros2 launch spark_fast_lio mapping_mid360.launch.yaml environment:=indoor
+```
+
+Choose the profile before starting a mapping session. Changing voxel resolution
+inside an existing session would mix map resolutions in the ikd-Tree.
+
 ## 12_07
 
 ## 12_08
