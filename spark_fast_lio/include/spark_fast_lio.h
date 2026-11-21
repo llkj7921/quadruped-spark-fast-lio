@@ -244,6 +244,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   double b_acc_cov_ = 0.0001;
 
   double filter_size_map_smaller_ = 0.0;
+  double filter_size_surf_min_    = 0.0;
   double filter_size_map_min_     = 0.0;
   double fov_deg_                 = 0.0;
   double cube_len_                = 0.0;

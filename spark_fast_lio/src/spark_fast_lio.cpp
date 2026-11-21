@@ -48,8 +48,9 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   viz_frame_     = declare_parameter<std::string>("common.visualization_frame", "imu");
   time_sync_en_  = declare_parameter<bool>("common.time_sync_en", false);
 
-  filter_size_map_min_ = declare_parameter<double>("filter_size_map", 0.5);
-  cube_len_            = declare_parameter<double>("cube_side_length", 200.0);
+  filter_size_map_min_  = declare_parameter<double>("filter_size_map", 0.5);
+  filter_size_surf_min_ = declare_parameter<double>("filter_size_surf", filter_size_map_min_);
+  cube_len_             = declare_parameter<double>("cube_side_length", 200.0);
   det_range_           = declare_parameter<double>("mapping.det_range", 300.0);
   fov_deg_             = declare_parameter<double>("mapping.fov_degree", 360.0);
   gyr_cov_             = declare_parameter<double>("mapping.gyr_cov", 0.1);
@@ -85,9 +86,7 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   auto g_vec = declare_parameter<std::vector<double>>("gravity_alignment.g_base", {0.0, 0.0, -1.0});
   g_base_ << g_vec[0], g_vec[1], g_vec[2];
 
-  rclcpp::QoS lidar_qos(rclcpp::KeepLast(10));
-  lidar_qos.reliable();
-  lidar_qos.durability_volatile();
+  auto lidar_qos = rclcpp::SensorDataQoS().keep_last(2);
   sub_lidar_      = create_subscription<sensor_msgs::msg::PointCloud2>(
       "lidar",
       lidar_qos,
@@ -143,7 +142,8 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   imu_processor_->set_gyr_bias_cov(Eigen::Vector3d(b_gyr_cov_, b_gyr_cov_, b_gyr_cov_));
   imu_processor_->set_acc_bias_cov(Eigen::Vector3d(b_acc_cov_, b_acc_cov_, b_acc_cov_));
 
-  down_size_filter_.setLeafSize(filter_size_map_min_, filter_size_map_min_, filter_size_map_min_);
+  down_size_filter_.setLeafSize(
+      filter_size_surf_min_, filter_size_surf_min_, filter_size_surf_min_);
 
   double epsi[23];
   for (int i = 0; i < 23; ++i) epsi[i] = 0.001;

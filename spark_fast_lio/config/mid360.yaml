@@ -7,7 +7,12 @@
       scan_line: 4
       timestamp_unit: 3
       blind: 0.5
-      point_filter_num: 1
+
+    # Keep the full cloud for preprocessing/deskewing, then apply the
+    # FAST-LIO2 1:4 temporal sampling before spatial voxel filtering.
+    point_filter_num_for_preprocessing: 1
+    point_filter_num: 4
+    max_iteration: 4
 
     mapping:
       acc_cov: 0.1
@@ -15,7 +20,7 @@
       b_acc_cov: 0.0001
       b_gyr_cov: 0.0001
       fov_degree: 360.0
-      det_range: 70.0
+      det_range: 60.0
       extrinsic_est_en: false
       # LiDAR pose in the built-in IMU frame (Livox Mid-360).
       extrinsic_T: [-0.011, -0.02329, 0.04412]
@@ -23,14 +28,19 @@
                     0.0, 1.0, 0.0,
                     0.0, 0.0, 1.0]
 
-    filter_size_map: 0.3
+    # Current-scan resolution used for state estimation and the independent
+    # on-tree resolution used to bound the accumulated ikd-Tree map.
+    filter_size_surf: 0.3
+    filter_size_map: 0.4
 
     publish:
       path_en: true
       scan_publish_en: true
-      dense_publish_en: true
-      scan_bodyframe_pub_en: true
+      dense_publish_en: false
+      scan_bodyframe_pub_en: false
 
     pcd_save:
-      pcd_save_en: true
+      # Synchronous PCD writes run on the odometry path; keep them disabled
+      # until saving is moved to a bounded background worker.
+      pcd_save_en: false
       interval: 50
