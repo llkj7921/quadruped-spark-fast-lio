@@ -78,6 +78,9 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   pcd_save_interval_    = declare_parameter<int>("pcd_save.interval", -1);
 
   point_filter_num_ = declare_parameter<int>("point_filter_num", 4);
+  performance_log_interval_ =
+      declare_parameter<int>("performance.log_interval_frames", 100);
+  frame_deadline_ms_ = declare_parameter<double>("performance.frame_deadline_ms", 100.0);
 
   // extrinT_ and extrinR_ are sized 3 and 9 respectively
   extrinT_ = declare_parameter<std::vector<double>>("mapping.extrinsic_T", extrinT_);
@@ -894,7 +897,40 @@ PoseStruct SPARKFastLIO2::transformPoseWrtLidarFrame(const state_ikfom &state) c
 
 void SPARKFastLIO2::main() {
   if (syncPackages(Measures_, verbose_)) {
+    const double frame_start = omp_get_wtime();
     processLidarAndImu(Measures_);
+    const double frame_time_ms = (omp_get_wtime() - frame_start) * 1000.0;
+    const double queue_delay_ms = (now().seconds() - Measures_.lidar_end_time) * 1000.0;
+    ++processed_frame_count_;
+
+    if (frame_time_ms > frame_deadline_ms_) {
+      RCLCPP_WARN_THROTTLE(get_logger(),
+                           *get_clock(),
+                           2000,
+                           "FAST-LIO deadline miss: total=%.1f ms (budget=%.1f ms), "
+                           "queue_delay=%.1f ms, raw=%zu, sampled=%zu, voxel=%d, map=%d",
+                           frame_time_ms,
+                           frame_deadline_ms_,
+                           queue_delay_ms,
+                           cloud_undistort_->size(),
+                           feats_undistort_->size(),
+                           feats_down_size_,
+                           ikd_tree_.validnum());
+    }
+
+    if (performance_log_interval_ > 0 &&
+        processed_frame_count_ % static_cast<uint64_t>(performance_log_interval_) == 0) {
+      RCLCPP_INFO(get_logger(),
+                  "FAST-LIO perf: frame=%lu total=%.1f ms queue_delay=%.1f ms "
+                  "raw=%zu sampled=%zu voxel=%d map=%d",
+                  static_cast<unsigned long>(processed_frame_count_),
+                  frame_time_ms,
+                  queue_delay_ms,
+                  cloud_undistort_->size(),
+                  feats_undistort_->size(),
+                  feats_down_size_,
+                  ikd_tree_.validnum());
+    }
   }
 }
 
