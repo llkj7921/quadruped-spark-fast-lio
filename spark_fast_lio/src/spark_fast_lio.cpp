@@ -103,11 +103,16 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   quality_max_queue_delay_ms_ =
       declare_parameter<double>("quality.max_queue_delay_ms", 150.0);
   quality_warmup_frames_ = declare_parameter<int>("quality.warmup_frames", 10);
-  if (lidar_gap_warn_s_ <= 0.0 || lidar_gap_recovery_s_ < lidar_gap_warn_s_ ||
+  if (!std::isfinite(frame_deadline_ms_) || frame_deadline_ms_ <= 0.0 ||
+      !std::isfinite(lidar_gap_warn_s_) || lidar_gap_warn_s_ <= 0.0 ||
+      !std::isfinite(lidar_gap_recovery_s_) ||
+      lidar_gap_recovery_s_ < lidar_gap_warn_s_ ||
       max_lidar_queue_size <= 0 || quality_min_effective_features_ <= 0 ||
-      quality_max_mean_residual_m_ <= 0.0 || quality_max_queue_delay_ms_ <= 0.0 ||
+      !std::isfinite(quality_max_mean_residual_m_) ||
+      quality_max_mean_residual_m_ <= 0.0 ||
+      !std::isfinite(quality_max_queue_delay_ms_) || quality_max_queue_delay_ms_ <= 0.0 ||
       quality_warmup_frames_ < 0) {
-    throw std::invalid_argument("invalid recovery gap or queue configuration");
+    throw std::invalid_argument("invalid performance, recovery, or quality configuration");
   }
   max_lidar_queue_size_ = static_cast<std::size_t>(max_lidar_queue_size);
 
@@ -116,6 +121,12 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   extrinR_ = declare_parameter<std::vector<double>>("mapping.extrinsic_R", extrinR_);
 
   auto g_vec = declare_parameter<std::vector<double>>("gravity_alignment.g_base", {0.0, 0.0, -1.0});
+  if (g_vec.size() != 3 || !std::isfinite(g_vec[0]) || !std::isfinite(g_vec[1]) ||
+      !std::isfinite(g_vec[2]) ||
+      (g_vec[0] * g_vec[0] + g_vec[1] * g_vec[1] + g_vec[2] * g_vec[2]) <= 1e-12) {
+    throw std::invalid_argument(
+        "gravity_alignment.g_base must contain three finite values and be non-zero");
+  }
   g_base_ << g_vec[0], g_vec[1], g_vec[2];
 
   auto lidar_qos = rclcpp::SensorDataQoS().keep_last(2);
