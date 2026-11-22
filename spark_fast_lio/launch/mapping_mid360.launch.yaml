@@ -20,7 +20,7 @@ launch:
           value: "livox_frame"
         - name: "common.imu_frame"
           value: "livox_frame"
-        - name: "common.map_frame"
+        - name: "common.odom_frame"
           value: "odom"
         - name: "common.base_frame"
           value: "livox_frame"

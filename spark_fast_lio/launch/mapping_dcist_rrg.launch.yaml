@@ -25,7 +25,7 @@ launch:
           value: "$(var robot_name)/base"
         - name: "common.imu_frame"
           value: "$(var robot_name)/imu_link"
-        - name: "common.map_frame"
+        - name: "common.odom_frame"
           value: "$(var robot_name)/$(var map_frame)"
         # - name: "common.base_frame"
         #   value: "$(var robot_name)/$(var base_frame)"

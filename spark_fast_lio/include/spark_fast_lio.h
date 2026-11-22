@@ -20,6 +20,7 @@
 #include <tf2_ros/transform_listener.h>
 
 #include "common/so3_math.h"
+#include "frontend_map_update_gate.hpp"
 #include "ikd_Tree.h"
 #include "imu_processing.hpp"
 #include "preprocess.h"
@@ -149,6 +150,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   void processLidarAndImu(MeasureGroup &Measure);
  private:
   void checkLidarGap(const rclcpp::Time &stamp);
+  void recoveryStatusCallback(const std_msgs::msg::String::ConstSharedPtr message);
   void boundLidarQueue();
   std::mutex buffer_mutex_;
 
@@ -159,6 +161,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
 #endif
 
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_recovery_status_;
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_full_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_lidar_;
@@ -231,7 +234,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   std::string map_file_path_;
   std::string save_dir_;
   std::string sequence_name_;
-  std::string map_frame_;
+  std::string odom_frame_;
   std::string lidar_frame_;
   std::string base_frame_;
   std::string imu_frame_;
@@ -285,6 +288,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   int quality_warmup_frames_ = 10;
   std::size_t max_lidar_queue_size_ = 2;
   bool received_lidar_ = false;
+  FrontendMapUpdateGate frontend_map_update_gate_;
 
   double lidar_mean_scantime_ = 0.0;
   int scan_num_               = 0;

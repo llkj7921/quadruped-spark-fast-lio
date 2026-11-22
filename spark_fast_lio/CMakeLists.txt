@@ -133,6 +133,12 @@ rclcpp_components_register_node(
   EXECUTABLE spark_lio_mapping
 )
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_frontend_map_update_gate test/test_frontend_map_update_gate.cpp)
+  target_include_directories(test_frontend_map_update_gate PRIVATE include)
+endif()
+
 # Install
 install(
   TARGETS spark_lio_component

@@ -27,7 +27,7 @@ launch:
           value: "$(var robot_name)/velodyne_link"
         - name: "common.imu_frame"
           value: "$(var robot_name)/forward_imu_optical_frame"
-        - name: "common.map_frame"
+        - name: "common.odom_frame"
           value: "$(var map_frame)"
         - name: "common.base_frame"
           value: "$(var base_frame)"

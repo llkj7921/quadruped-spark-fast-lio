@@ -51,7 +51,7 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   map_file_path_ = declare_parameter<std::string>("map_file_path", "");
   save_dir_      = declare_parameter<std::string>("common.save_dir", "");
   sequence_name_ = declare_parameter<std::string>("common.sequence_name", "");
-  map_frame_     = declare_parameter<std::string>("common.map_frame", "odom");
+  odom_frame_    = declare_parameter<std::string>("common.odom_frame", "odom");
   lidar_frame_   = declare_parameter<std::string>("common.lidar_frame", "lidar");
   base_frame_    = declare_parameter<std::string>("common.base_frame", "");
   imu_frame_     = declare_parameter<std::string>("common.imu_frame", "imu");
@@ -132,6 +132,9 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   auto imu_qos = rclcpp::SensorDataQoS();
   sub_imu_ = create_subscription<sensor_msgs::msg::Imu>(
       "imu", imu_qos, std::bind(&SPARKFastLIO2::imuCallback, this, std::placeholders::_1));
+  sub_recovery_status_ = create_subscription<std_msgs::msg::String>(
+      "/recovery/status", rclcpp::QoS(1).reliable().transient_local(),
+      std::bind(&SPARKFastLIO2::recoveryStatusCallback, this, std::placeholders::_1));
 
   rclcpp::QoS qos((rclcpp::SystemDefaultsQoS().keep_last(1).durability_volatile()));
   pub_cloud_full_  = create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", qos);
@@ -145,7 +148,7 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
       "/recovery/lidar_status", rclcpp::QoS(1).reliable().transient_local());
   pub_localization_quality_ = create_publisher<std_msgs::msg::String>(
       "/localization/quality", rclcpp::QoS(1).reliable().transient_local());
-  path_msg_.header.frame_id = map_frame_;
+  path_msg_.header.frame_id = odom_frame_;
 
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
   tf_buffer_      = std::make_shared<tf2_ros::Buffer>(this->get_clock());
@@ -481,6 +484,7 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
   if (received_lidar_ && stamp >= last_lidar_timestamp_) {
     const double gap_s = (stamp - last_lidar_timestamp_).seconds();
     if (gap_s >= lidar_gap_recovery_s_) {
+      frontend_map_update_gate_.freeze();
       std_msgs::msg::String status;
       status.data = "recovering gap_s=" + std::to_string(gap_s);
       pub_recovery_status_->publish(status);
@@ -488,6 +492,7 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
                    "LiDAR gap %.3f s: freezing map updates and requesting relocalization",
                    gap_s);
     } else if (gap_s >= lidar_gap_warn_s_) {
+      frontend_map_update_gate_.freeze();
       std_msgs::msg::String status;
       status.data = "degraded gap_s=" + std::to_string(gap_s);
       pub_recovery_status_->publish(status);
@@ -495,6 +500,18 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
     }
   }
   received_lidar_ = true;
+}
+
+void SPARKFastLIO2::recoveryStatusCallback(
+    const std_msgs::msg::String::ConstSharedPtr message) {
+  const bool was_allowed = frontend_map_update_gate_.allowed();
+  frontend_map_update_gate_.updateFromRecoveryStatus(message->data);
+  const bool is_allowed = frontend_map_update_gate_.allowed();
+  if (was_allowed && !is_allowed) {
+    RCLCPP_WARN(get_logger(), "FAST-LIO ikd-Tree updates frozen: %s", message->data.c_str());
+  } else if (!was_allowed && is_allowed) {
+    RCLCPP_INFO(get_logger(), "FAST-LIO ikd-Tree updates resumed after confirmed recovery");
+  }
 }
 
 void SPARKFastLIO2::boundLidarQueue() {
@@ -739,6 +756,7 @@ void SPARKFastLIO2::lasermapFovSegment() {
 }
 
 void SPARKFastLIO2::mapIncremental() {
+  if (!frontend_map_update_gate_.allowed()) return;
   PointVector PointToAdd;
   PointVector PointNoNeedDownsample;
   PointToAdd.reserve(feats_down_size_);
@@ -798,7 +816,7 @@ void SPARKFastLIO2::mapIncremental() {
 }
 
 void SPARKFastLIO2::publishOdometry(const state_ikfom &state, const rclcpp::Time &stamp) {
-  odomAftMapped_.header.frame_id = map_frame_;
+  odomAftMapped_.header.frame_id = odom_frame_;
   odomAftMapped_.header.stamp    = stamp;
 
   setPoseStamp(state, odomAftMapped_.pose, viz_frame_);  // our template function
@@ -830,7 +848,7 @@ void SPARKFastLIO2::publishOdometry(const state_ikfom &state, const rclcpp::Time
 
   geometry_msgs::msg::TransformStamped transform_stamped;
   transform_stamped.header.stamp    = odomAftMapped_.header.stamp;
-  transform_stamped.header.frame_id = map_frame_;
+  transform_stamped.header.frame_id = odom_frame_;
   transform_stamped.child_frame_id  = odomAftMapped_.child_frame_id;
 
   transform_stamped.transform.translation.x = odomAftMapped_.pose.pose.position.x;
@@ -844,7 +862,7 @@ void SPARKFastLIO2::publishOdometry(const state_ikfom &state, const rclcpp::Time
 void SPARKFastLIO2::publishPath(const state_ikfom &state) {
   setPoseStamp(state, msg_body_pose_, viz_frame_);
   msg_body_pose_.header.stamp    = rclcpp::Time(lidar_end_time_ * 1e9);
-  msg_body_pose_.header.frame_id = map_frame_;
+  msg_body_pose_.header.frame_id = odom_frame_;
 
   static int jjj = 0;
   jjj++;
@@ -893,7 +911,7 @@ void SPARKFastLIO2::publishFrameWorld(
   pcl::toROSMsg(*laserCloudWorld, cloud_msg);
   // use lidar_end_time_ for the timestamp
   cloud_msg.header.stamp    = rclcpp::Time(lidar_end_time_ * 1e9);  // from seconds
-  cloud_msg.header.frame_id = map_frame_;
+  cloud_msg.header.frame_id = odom_frame_;
 
   pubCloud->publish(cloud_msg);
   publish_count_ -= PUBFRAME_PERIOD;

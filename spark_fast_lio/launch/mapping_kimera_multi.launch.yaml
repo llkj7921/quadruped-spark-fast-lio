@@ -35,7 +35,7 @@ launch:
           value: "$(var scene_id)/$(var lidar_frame)"
         - name: "common.imu_frame"
           value: "$(var scene_id)/$(var imu_frame)"
-        - name: "common.map_frame"
+        - name: "common.odom_frame"
           value: "$(var scene_id)/$(var map_frame)"
         - name: "common.base_frame"
           value: "$(var scene_id)/$(var base_frame)"
