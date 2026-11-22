@@ -23,6 +23,14 @@
       lidar_gap_recovery_s: 1.0
       max_lidar_queue_size: 2
 
+    # Runtime localization-health thresholds. Tune these from real-machine logs;
+    # the defaults intentionally require repeated failures in the mode manager.
+    quality:
+      min_effective_features: 20
+      max_mean_residual_m: 0.25
+      max_queue_delay_ms: 150.0
+      warmup_frames: 10
+
     mapping:
       acc_cov: 0.1
       gyr_cov: 0.1

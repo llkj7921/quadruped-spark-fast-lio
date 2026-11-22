@@ -167,6 +167,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_recovery_status_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_localization_quality_;
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -275,9 +276,13 @@ class SPARKFastLIO2 : public rclcpp::Node {
   double frame_deadline_ms_ = 100.0;
   double lidar_gap_warn_s_ = 0.3;
   double lidar_gap_recovery_s_ = 1.0;
+  double quality_max_queue_delay_ms_ = 150.0;
+  double quality_max_mean_residual_m_ = 0.25;
   double display_max_height_ = 1.5;
   double active_lidar_arrival_time_ = 0.0;
   uint64_t processed_frame_count_ = 0;
+  int quality_min_effective_features_ = 20;
+  int quality_warmup_frames_ = 10;
   std::size_t max_lidar_queue_size_ = 2;
   bool received_lidar_ = false;
 

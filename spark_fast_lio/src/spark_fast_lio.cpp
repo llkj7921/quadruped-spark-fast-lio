@@ -96,8 +96,17 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
       declare_parameter<double>("recovery.lidar_gap_recovery_s", 1.0);
   max_lidar_queue_size_ = static_cast<std::size_t>(
       declare_parameter<int>("recovery.max_lidar_queue_size", 2));
+  quality_min_effective_features_ =
+      declare_parameter<int>("quality.min_effective_features", 20);
+  quality_max_mean_residual_m_ =
+      declare_parameter<double>("quality.max_mean_residual_m", 0.25);
+  quality_max_queue_delay_ms_ =
+      declare_parameter<double>("quality.max_queue_delay_ms", 150.0);
+  quality_warmup_frames_ = declare_parameter<int>("quality.warmup_frames", 10);
   if (lidar_gap_warn_s_ <= 0.0 || lidar_gap_recovery_s_ < lidar_gap_warn_s_ ||
-      max_lidar_queue_size_ == 0) {
+      max_lidar_queue_size_ == 0 || quality_min_effective_features_ <= 0 ||
+      quality_max_mean_residual_m_ <= 0.0 || quality_max_queue_delay_ms_ <= 0.0 ||
+      quality_warmup_frames_ < 0) {
     throw std::invalid_argument("invalid recovery gap or queue configuration");
   }
 
@@ -134,6 +143,8 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   pub_path_                 = create_publisher<nav_msgs::msg::Path>("path", qos);
   pub_recovery_status_ = create_publisher<std_msgs::msg::String>(
       "/recovery/lidar_status", rclcpp::QoS(1).reliable().transient_local());
+  pub_localization_quality_ = create_publisher<std_msgs::msg::String>(
+      "/localization/quality", rclcpp::QoS(1).reliable().transient_local());
   path_msg_.header.frame_id = map_frame_;
 
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -973,6 +984,27 @@ void SPARKFastLIO2::main() {
     const double frame_time_ms = (omp_get_wtime() - frame_start) * 1000.0;
     const double queue_delay_ms = (frame_start - active_lidar_arrival_time_) * 1000.0;
     ++processed_frame_count_;
+
+    if (processed_frame_count_ > static_cast<uint64_t>(quality_warmup_frames_) &&
+        ikd_tree_.validnum() > 0) {
+      const bool feature_bad = effect_feat_num_ < quality_min_effective_features_ / 2;
+      const bool residual_bad = !std::isfinite(res_mean_last_) ||
+                                res_mean_last_ > 2.0 * quality_max_mean_residual_m_;
+      const bool queue_bad = queue_delay_ms > 2.0 * quality_max_queue_delay_ms_;
+      const bool quality_good = effect_feat_num_ >= quality_min_effective_features_ &&
+                                std::isfinite(res_mean_last_) &&
+                                res_mean_last_ <= quality_max_mean_residual_m_ &&
+                                queue_delay_ms <= quality_max_queue_delay_ms_;
+      std_msgs::msg::String quality;
+      quality.data = std::string("quality=") +
+                     ((feature_bad || residual_bad || queue_bad)
+                          ? "bad"
+                          : (quality_good ? "good" : "suspected")) +
+                     " effective_features=" + std::to_string(effect_feat_num_) +
+                     " mean_residual_m=" + std::to_string(res_mean_last_) +
+                     " queue_delay_ms=" + std::to_string(queue_delay_ms);
+      pub_localization_quality_->publish(quality);
+    }
 
     if (frame_time_ms > frame_deadline_ms_) {
       RCLCPP_WARN_THROTTLE(get_logger(),
