@@ -16,6 +16,7 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <slam_system_interfaces/msg/localization_health.hpp>
+#include <slam_system_interfaces/msg/lidar_stream_status.hpp>
 #include <slam_system_interfaces/msg/recovery_status.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -152,7 +153,6 @@ class SPARKFastLIO2 : public rclcpp::Node {
   void processLidarAndImu(MeasureGroup &Measure);
  private:
   void checkLidarGap(const rclcpp::Time &stamp);
-  void recoveryStatusCallback(const std_msgs::msg::String::ConstSharedPtr message);
   void recoveryStatusCallbackTyped(
       const slam_system_interfaces::msg::RecoveryStatus::ConstSharedPtr message);
   void boundLidarQueue();
@@ -165,7 +165,6 @@ class SPARKFastLIO2 : public rclcpp::Node {
 #endif
 
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr sub_imu_;
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub_recovery_status_;
   rclcpp::Subscription<slam_system_interfaces::msg::RecoveryStatus>::SharedPtr
       sub_recovery_status_typed_;
 
@@ -176,6 +175,8 @@ class SPARKFastLIO2 : public rclcpp::Node {
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_recovery_status_;
+  rclcpp::Publisher<slam_system_interfaces::msg::LidarStreamStatus>::SharedPtr
+      pub_lidar_stream_status_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_localization_quality_;
   rclcpp::Publisher<slam_system_interfaces::msg::LocalizationHealth>::SharedPtr
       pub_localization_health_;

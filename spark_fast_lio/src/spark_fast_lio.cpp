@@ -132,9 +132,6 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   auto imu_qos = rclcpp::SensorDataQoS();
   sub_imu_ = create_subscription<sensor_msgs::msg::Imu>(
       "imu", imu_qos, std::bind(&SPARKFastLIO2::imuCallback, this, std::placeholders::_1));
-  sub_recovery_status_ = create_subscription<std_msgs::msg::String>(
-      "/recovery/status", rclcpp::QoS(1).reliable().transient_local(),
-      std::bind(&SPARKFastLIO2::recoveryStatusCallback, this, std::placeholders::_1));
   sub_recovery_status_typed_ =
       create_subscription<slam_system_interfaces::msg::RecoveryStatus>(
           "/recovery/state", rclcpp::QoS(1).reliable().transient_local(),
@@ -151,6 +148,9 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   pub_path_                 = create_publisher<nav_msgs::msg::Path>("path", qos);
   pub_recovery_status_ = create_publisher<std_msgs::msg::String>(
       "/recovery/lidar_status", rclcpp::QoS(1).reliable().transient_local());
+  pub_lidar_stream_status_ =
+      create_publisher<slam_system_interfaces::msg::LidarStreamStatus>(
+          "/lidar/stream_status", rclcpp::QoS(1).reliable().transient_local());
   pub_localization_quality_ = create_publisher<std_msgs::msg::String>(
       "/localization/quality", rclcpp::QoS(1).reliable().transient_local());
   pub_localization_health_ =
@@ -496,6 +496,11 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
       std_msgs::msg::String status;
       status.data = "recovering gap_s=" + std::to_string(gap_s);
       pub_recovery_status_->publish(status);
+      slam_system_interfaces::msg::LidarStreamStatus stream_status;
+      stream_status.state = slam_system_interfaces::msg::LidarStreamStatus::RECOVERING;
+      stream_status.gap_seconds = gap_s;
+      stream_status.reason = "LiDAR gap exceeded recovery threshold";
+      pub_lidar_stream_status_->publish(stream_status);
       slam_system_interfaces::msg::LocalizationHealth health;
       health.state = slam_system_interfaces::msg::LocalizationHealth::BAD;
       health.reason = status.data;
@@ -508,6 +513,11 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
       std_msgs::msg::String status;
       status.data = "degraded gap_s=" + std::to_string(gap_s);
       pub_recovery_status_->publish(status);
+      slam_system_interfaces::msg::LidarStreamStatus stream_status;
+      stream_status.state = slam_system_interfaces::msg::LidarStreamStatus::DEGRADED;
+      stream_status.gap_seconds = gap_s;
+      stream_status.reason = "LiDAR gap exceeded warning threshold";
+      pub_lidar_stream_status_->publish(stream_status);
       slam_system_interfaces::msg::LocalizationHealth health;
       health.state = slam_system_interfaces::msg::LocalizationHealth::SUSPECTED;
       health.reason = status.data;
@@ -530,18 +540,6 @@ void SPARKFastLIO2::recoveryStatusCallbackTyped(
     RCLCPP_WARN(get_logger(), "FAST-LIO ikd-Tree updates frozen by typed recovery state");
   } else if (!was_allowed && frontend_map_update_gate_.allowed()) {
     RCLCPP_INFO(get_logger(), "FAST-LIO ikd-Tree updates resumed by typed recovery state");
-  }
-}
-
-void SPARKFastLIO2::recoveryStatusCallback(
-    const std_msgs::msg::String::ConstSharedPtr message) {
-  const bool was_allowed = frontend_map_update_gate_.allowed();
-  frontend_map_update_gate_.updateFromRecoveryStatus(message->data);
-  const bool is_allowed = frontend_map_update_gate_.allowed();
-  if (was_allowed && !is_allowed) {
-    RCLCPP_WARN(get_logger(), "FAST-LIO ikd-Tree updates frozen: %s", message->data.c_str());
-  } else if (!was_allowed && is_allowed) {
-    RCLCPP_INFO(get_logger(), "FAST-LIO ikd-Tree updates resumed after confirmed recovery");
   }
 }
 
