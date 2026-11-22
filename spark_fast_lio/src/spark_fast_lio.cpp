@@ -91,6 +91,15 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   performance_log_interval_ =
       declare_parameter<int>("performance.log_interval_frames", 100);
   frame_deadline_ms_ = declare_parameter<double>("performance.frame_deadline_ms", 100.0);
+  lidar_gap_warn_s_ = declare_parameter<double>("recovery.lidar_gap_warn_s", 0.3);
+  lidar_gap_recovery_s_ =
+      declare_parameter<double>("recovery.lidar_gap_recovery_s", 1.0);
+  max_lidar_queue_size_ = static_cast<std::size_t>(
+      declare_parameter<int>("recovery.max_lidar_queue_size", 2));
+  if (lidar_gap_warn_s_ <= 0.0 || lidar_gap_recovery_s_ < lidar_gap_warn_s_ ||
+      max_lidar_queue_size_ == 0) {
+    throw std::invalid_argument("invalid recovery gap or queue configuration");
+  }
 
   // extrinT_ and extrinR_ are sized 3 and 9 respectively
   extrinT_ = declare_parameter<std::vector<double>>("mapping.extrinsic_T", extrinT_);
@@ -123,6 +132,8 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
 
   pub_odom_                 = create_publisher<nav_msgs::msg::Odometry>("odometry", qos);
   pub_path_                 = create_publisher<nav_msgs::msg::Path>("path", qos);
+  pub_recovery_status_ = create_publisher<std_msgs::msg::String>(
+      "/recovery/lidar_status", rclcpp::QoS(1).reliable().transient_local());
   path_msg_.header.frame_id = map_frame_;
 
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -386,6 +397,7 @@ void SPARKFastLIO2::standardLiDARCallback(const sensor_msgs::msg::PointCloud2 &m
   std::lock_guard<std::mutex> lk(buffer_mutex_);
   scan_count_++;
   rclcpp::Time msg_time = msg.header.stamp;
+  checkLidarGap(msg_time);
 
   if (msg_time < last_lidar_timestamp_) {
     RCLCPP_ERROR(get_logger(), "Lidar loopback detected, clearing buffers");
@@ -401,6 +413,7 @@ void SPARKFastLIO2::standardLiDARCallback(const sensor_msgs::msg::PointCloud2 &m
   lidar_buffer_.push_back(ptr);
   time_buffer_.push_back(msg_time.seconds());
   lidar_arrival_time_buffer_.push_back(arrival_time);
+  boundLidarQueue();
 
   sig_buffer_.notify_all();
 }
@@ -414,6 +427,7 @@ void SPARKFastLIO2::livoxLiDARCallback(
   std::lock_guard<std::mutex> lk(buffer_mutex_);
   scan_count_++;
   rclcpp::Time msg_time = msg.header.stamp;
+  checkLidarGap(msg_time);
 
   if (msg_time < last_lidar_timestamp_) {
     RCLCPP_ERROR(get_logger(), "Livox loopback, clearing buffers");
@@ -446,10 +460,42 @@ void SPARKFastLIO2::livoxLiDARCallback(
   lidar_buffer_.push_back(ptr);
   time_buffer_.push_back(msg_time.seconds());
   lidar_arrival_time_buffer_.push_back(arrival_time);
+  boundLidarQueue();
 
   sig_buffer_.notify_all();
 }
 #endif
+
+void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
+  if (received_lidar_ && stamp >= last_lidar_timestamp_) {
+    const double gap_s = (stamp - last_lidar_timestamp_).seconds();
+    if (gap_s >= lidar_gap_recovery_s_) {
+      std_msgs::msg::String status;
+      status.data = "recovering gap_s=" + std::to_string(gap_s);
+      pub_recovery_status_->publish(status);
+      RCLCPP_ERROR(get_logger(),
+                   "LiDAR gap %.3f s: freezing map updates and requesting relocalization",
+                   gap_s);
+    } else if (gap_s >= lidar_gap_warn_s_) {
+      std_msgs::msg::String status;
+      status.data = "degraded gap_s=" + std::to_string(gap_s);
+      pub_recovery_status_->publish(status);
+      RCLCPP_WARN(get_logger(), "LiDAR gap warning: %.3f s", gap_s);
+    }
+  }
+  received_lidar_ = true;
+}
+
+void SPARKFastLIO2::boundLidarQueue() {
+  while (lidar_buffer_.size() > max_lidar_queue_size_) {
+    lidar_buffer_.pop_front();
+    time_buffer_.pop_front();
+    lidar_arrival_time_buffer_.pop_front();
+    lidar_pushed_ = false;
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
+                         "Dropping stale LiDAR frame to keep latency bounded");
+  }
+}
 
 void SPARKFastLIO2::imuCallback(const sensor_msgs::msg::Imu::ConstSharedPtr msg) {
   ++publish_count_;

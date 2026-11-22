@@ -14,6 +14,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -147,6 +148,8 @@ class SPARKFastLIO2 : public rclcpp::Node {
 
   void processLidarAndImu(MeasureGroup &Measure);
  private:
+  void checkLidarGap(const rclcpp::Time &stamp);
+  void boundLidarQueue();
   std::mutex buffer_mutex_;
 
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_lidar_;
@@ -163,6 +166,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_cloud_base_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr pub_path_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_recovery_status_;
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -269,9 +273,13 @@ class SPARKFastLIO2 : public rclcpp::Node {
   int feats_down_size_neighbor_ = numeric_limits<int>::max();
 
   double frame_deadline_ms_ = 100.0;
+  double lidar_gap_warn_s_ = 0.3;
+  double lidar_gap_recovery_s_ = 1.0;
   double display_max_height_ = 1.5;
   double active_lidar_arrival_time_ = 0.0;
   uint64_t processed_frame_count_ = 0;
+  std::size_t max_lidar_queue_size_ = 2;
+  bool received_lidar_ = false;
 
   double lidar_mean_scantime_ = 0.0;
   int scan_num_               = 0;

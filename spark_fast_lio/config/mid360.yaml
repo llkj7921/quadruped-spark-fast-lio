@@ -18,6 +18,11 @@
       frame_deadline_ms: 100.0
       log_interval_frames: 50
 
+    recovery:
+      lidar_gap_warn_s: 0.3
+      lidar_gap_recovery_s: 1.0
+      max_lidar_queue_size: 2
+
     mapping:
       acc_cov: 0.1
       gyr_cov: 0.1
