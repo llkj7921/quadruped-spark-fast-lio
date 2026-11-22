@@ -94,8 +94,8 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   lidar_gap_warn_s_ = declare_parameter<double>("recovery.lidar_gap_warn_s", 0.3);
   lidar_gap_recovery_s_ =
       declare_parameter<double>("recovery.lidar_gap_recovery_s", 1.0);
-  max_lidar_queue_size_ = static_cast<std::size_t>(
-      declare_parameter<int>("recovery.max_lidar_queue_size", 2));
+  const int max_lidar_queue_size =
+      declare_parameter<int>("recovery.max_lidar_queue_size", 2);
   quality_min_effective_features_ =
       declare_parameter<int>("quality.min_effective_features", 20);
   quality_max_mean_residual_m_ =
@@ -104,11 +104,12 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
       declare_parameter<double>("quality.max_queue_delay_ms", 150.0);
   quality_warmup_frames_ = declare_parameter<int>("quality.warmup_frames", 10);
   if (lidar_gap_warn_s_ <= 0.0 || lidar_gap_recovery_s_ < lidar_gap_warn_s_ ||
-      max_lidar_queue_size_ == 0 || quality_min_effective_features_ <= 0 ||
+      max_lidar_queue_size <= 0 || quality_min_effective_features_ <= 0 ||
       quality_max_mean_residual_m_ <= 0.0 || quality_max_queue_delay_ms_ <= 0.0 ||
       quality_warmup_frames_ < 0) {
     throw std::invalid_argument("invalid recovery gap or queue configuration");
   }
+  max_lidar_queue_size_ = static_cast<std::size_t>(max_lidar_queue_size);
 
   // extrinT_ and extrinR_ are sized 3 and 9 respectively
   extrinT_ = declare_parameter<std::vector<double>>("mapping.extrinsic_T", extrinT_);
@@ -156,6 +157,11 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   pub_localization_health_ =
       create_publisher<slam_system_interfaces::msg::LocalizationHealth>(
           "/localization/health", rclcpp::QoS(1).reliable().transient_local());
+  pub_map_updates_allowed_ = create_publisher<std_msgs::msg::Bool>(
+      "/frontend/map_updates_allowed", rclcpp::QoS(1).reliable().transient_local());
+  std_msgs::msg::Bool initial_map_permission;
+  initial_map_permission.data = true;
+  pub_map_updates_allowed_->publish(initial_map_permission);
   path_msg_.header.frame_id = odom_frame_;
 
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -541,6 +547,9 @@ void SPARKFastLIO2::recoveryStatusCallbackTyped(
   } else if (!was_allowed && frontend_map_update_gate_.allowed()) {
     RCLCPP_INFO(get_logger(), "FAST-LIO ikd-Tree updates resumed by typed recovery state");
   }
+  std_msgs::msg::Bool permission;
+  permission.data = frontend_map_update_gate_.allowed();
+  pub_map_updates_allowed_->publish(permission);
 }
 
 void SPARKFastLIO2::boundLidarQueue() {

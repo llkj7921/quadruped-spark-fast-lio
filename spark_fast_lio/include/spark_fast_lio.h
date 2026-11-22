@@ -15,6 +15,7 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <slam_system_interfaces/msg/localization_health.hpp>
 #include <slam_system_interfaces/msg/lidar_stream_status.hpp>
 #include <slam_system_interfaces/msg/recovery_status.hpp>
@@ -180,6 +181,7 @@ class SPARKFastLIO2 : public rclcpp::Node {
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_localization_quality_;
   rclcpp::Publisher<slam_system_interfaces::msg::LocalizationHealth>::SharedPtr
       pub_localization_health_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr pub_map_updates_allowed_;
 
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
