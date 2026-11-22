@@ -135,6 +135,11 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
   sub_recovery_status_ = create_subscription<std_msgs::msg::String>(
       "/recovery/status", rclcpp::QoS(1).reliable().transient_local(),
       std::bind(&SPARKFastLIO2::recoveryStatusCallback, this, std::placeholders::_1));
+  sub_recovery_status_typed_ =
+      create_subscription<slam_system_interfaces::msg::RecoveryStatus>(
+          "/recovery/state", rclcpp::QoS(1).reliable().transient_local(),
+          std::bind(&SPARKFastLIO2::recoveryStatusCallbackTyped, this,
+                    std::placeholders::_1));
 
   rclcpp::QoS qos((rclcpp::SystemDefaultsQoS().keep_last(1).durability_volatile()));
   pub_cloud_full_  = create_publisher<sensor_msgs::msg::PointCloud2>("cloud_registered", qos);
@@ -148,6 +153,9 @@ SPARKFastLIO2::SPARKFastLIO2(const rclcpp::NodeOptions &options)
       "/recovery/lidar_status", rclcpp::QoS(1).reliable().transient_local());
   pub_localization_quality_ = create_publisher<std_msgs::msg::String>(
       "/localization/quality", rclcpp::QoS(1).reliable().transient_local());
+  pub_localization_health_ =
+      create_publisher<slam_system_interfaces::msg::LocalizationHealth>(
+          "/localization/health", rclcpp::QoS(1).reliable().transient_local());
   path_msg_.header.frame_id = odom_frame_;
 
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -488,6 +496,10 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
       std_msgs::msg::String status;
       status.data = "recovering gap_s=" + std::to_string(gap_s);
       pub_recovery_status_->publish(status);
+      slam_system_interfaces::msg::LocalizationHealth health;
+      health.state = slam_system_interfaces::msg::LocalizationHealth::BAD;
+      health.reason = status.data;
+      pub_localization_health_->publish(health);
       RCLCPP_ERROR(get_logger(),
                    "LiDAR gap %.3f s: freezing map updates and requesting relocalization",
                    gap_s);
@@ -496,10 +508,29 @@ void SPARKFastLIO2::checkLidarGap(const rclcpp::Time &stamp) {
       std_msgs::msg::String status;
       status.data = "degraded gap_s=" + std::to_string(gap_s);
       pub_recovery_status_->publish(status);
+      slam_system_interfaces::msg::LocalizationHealth health;
+      health.state = slam_system_interfaces::msg::LocalizationHealth::SUSPECTED;
+      health.reason = status.data;
+      pub_localization_health_->publish(health);
       RCLCPP_WARN(get_logger(), "LiDAR gap warning: %.3f s", gap_s);
     }
   }
   received_lidar_ = true;
+}
+
+void SPARKFastLIO2::recoveryStatusCallbackTyped(
+    const slam_system_interfaces::msg::RecoveryStatus::ConstSharedPtr message) {
+  const bool was_allowed = frontend_map_update_gate_.allowed();
+  if (message->map_writes_allowed) {
+    frontend_map_update_gate_.updateFromRecoveryStatus("map_writes_allowed=true");
+  } else {
+    frontend_map_update_gate_.freeze();
+  }
+  if (was_allowed && !frontend_map_update_gate_.allowed()) {
+    RCLCPP_WARN(get_logger(), "FAST-LIO ikd-Tree updates frozen by typed recovery state");
+  } else if (!was_allowed && frontend_map_update_gate_.allowed()) {
+    RCLCPP_INFO(get_logger(), "FAST-LIO ikd-Tree updates resumed by typed recovery state");
+  }
 }
 
 void SPARKFastLIO2::recoveryStatusCallback(
@@ -1022,6 +1053,16 @@ void SPARKFastLIO2::main() {
                      " mean_residual_m=" + std::to_string(res_mean_last_) +
                      " queue_delay_ms=" + std::to_string(queue_delay_ms);
       pub_localization_quality_->publish(quality);
+      slam_system_interfaces::msg::LocalizationHealth health;
+      health.state = (feature_bad || residual_bad || queue_bad)
+                         ? slam_system_interfaces::msg::LocalizationHealth::BAD
+                         : (quality_good
+                                ? slam_system_interfaces::msg::LocalizationHealth::GOOD
+                                : slam_system_interfaces::msg::LocalizationHealth::SUSPECTED);
+      health.effective_features = static_cast<uint32_t>(std::max(effect_feat_num_, 0));
+      health.mean_residual_m = res_mean_last_;
+      health.queue_delay_ms = queue_delay_ms;
+      pub_localization_health_->publish(health);
     }
 
     if (frame_time_ms > frame_deadline_ms_) {
