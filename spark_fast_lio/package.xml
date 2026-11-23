@@ -1,12 +1,13 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>spark_fast_lio</name>
-  <version>0.0.0</version>
+  <version>0.1.0</version>
 
   <description>
-    This is a modified version of Fast-LIO2 for MIT SPARK
+    Quadruped ROS 2 LiDAR-inertial front end with Mid-360 profiles, health reporting, and recovery-controlled map updates.
   </description>
 
+  <maintainer email="llkj09203@gmail.com">llkj7921</maintainer>
   <maintainer email="shapelim@mit.edu">Hyungtae Lim</maintainer>
 
   <license>GPL</license>
