@@ -27,6 +27,38 @@ Please cite *FAST-LIO2: Fast Direct LiDAR-inertial Odometry*, IEEE T-RO,
 2022, [DOI: 10.1109/TRO.2022.3141876](https://doi.org/10.1109/TRO.2022.3141876),
 when using the algorithm in academic work.
 
+## Quadruped project usage (ROS 2 Humble)
+
+This repository is the real-time LiDAR-inertial front end of the quadruped SLAM
+stack. It is not a standalone copy for deployment: build it with the matching
+back end and typed message repository:
+
+- `llkj7921/quadruped-kiss-matcher-sam`
+- `llkj7921/quadruped-spark-fast-lio` (this repository)
+- `llkj7921/slam-system-interfaces`
+
+The complete clone, build and robot launch instructions are maintained in the
+[`quadruped-kiss-matcher-sam` README](https://github.com/llkj7921/quadruped-kiss-matcher-sam#quadruped-slam-quick-start-ros-2-humble).
+
+Mid-360 profiles are provided for indoor and outdoor operation:
+
+```text
+spark_fast_lio/config/mid360_indoor.yaml
+spark_fast_lio/config/mid360_outdoor.yaml
+```
+
+Prefer the integrated launch instead of starting this package separately:
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/slam_workspace/fastlio2_ws/install/setup.bash
+ros2 launch kiss_matcher_ros robot_slam_bringup.launch.py environment:=outdoor
+```
+
+The front end publishes typed LiDAR-stream and localization-health reports. It
+also consumes the recovery state to freeze ikd-Tree map updates during unsafe
+periods. Do not remove `slam_system_interfaces` from the workspace.
+
 ## :package: How to Install
 
 Put the code in your workspace/src folder
