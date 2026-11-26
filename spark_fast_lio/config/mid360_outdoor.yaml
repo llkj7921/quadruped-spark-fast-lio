@@ -1,6 +1,6 @@
 /**:
   ros__parameters:
-    filter_size_surf: 0.3
-    filter_size_map: 0.4
+    filter_size_surf: 0.2
+    filter_size_map: 0.2
     mapping:
       det_range: 60.0

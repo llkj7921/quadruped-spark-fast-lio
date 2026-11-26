@@ -8,7 +8,8 @@ The outdoor profile is selected by default:
 ros2 launch spark_fast_lio mapping_mid360.launch.yaml environment:=outdoor
 ```
 
-Use the indoor profile for shorter range and finer scan/map voxels:
+Use the indoor profile for shorter range and 0.05 m scan/map voxels (the
+outdoor profile uses 0.2 m):
 
 ```bash
 ros2 launch spark_fast_lio mapping_mid360.launch.yaml environment:=indoor
@@ -16,6 +17,8 @@ ros2 launch spark_fast_lio mapping_mid360.launch.yaml environment:=indoor
 
 Choose the profile before starting a mapping session. Changing voxel resolution
 inside an existing session would mix map resolutions in the ikd-Tree.
+The indoor setting increases point count and memory/CPU use; check frame time
+and queue delay on the target hardware before using it for real-time operation.
 
 The default display publishes the complete algorithm cloud. To hide points whose
 map-frame height is above 1.5 m without changing odometry or mapping, use:
